@@ -120,61 +120,58 @@ class tx_tagpackprovider extends tx_tesseract_providerbase {
 			$where = '';
 				// Assemble where clause based on selected tags, if any
 			if (count($finalTags) > 0) {
-				$where = 'uid_local IN (' . implode(',', $finalTags) . ')';
+				$where = 'uid_local IN (' . implode(',', $finalTags) . ') AND ';
 			}
 
-				// Continue only if where clause is not empty
-				// (the contrary would mean selecting all records from the selected tables, which makes no sense)
-			if (!empty($where)) {
-					// Add condition on tables
-				if (!empty($this->providerData['tables'])) {
-					$condition = '';
-					foreach ($tables as $aTable) {
-						if (!empty($condition)) {
-							$condition .= ',';
-						}
-						$condition .= "'" . $aTable . "'";
+				// Add condition on tables
+			if (!empty($this->providerData['tables'])) {
+				$condition = '';
+				foreach ($tables as $aTable) {
+					if (!empty($condition)) {
+						$condition .= ',';
 					}
-					$where .= ' AND tablenames IN (' . $condition . ')';
+					$condition .= "'" . $aTable . "'";
 				}
-					// NOTE: not sure how tagpack uses/sets these fields
-					// Anyway there's no TCA for table tx_tagpack_tags_relations_mm,
-					// so the proper API cannot be used
-				$where .= " AND hidden='0' AND deleted='0'";
-					// Query the tags relations table
-					// NOTE: results are sorted by table and by sorting
-					// This respects the order in which tags were applied. Maybe this doesn't make sense after all. Could be reviewed at a later stage
-				$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('uid_local, uid_foreign, tablenames', 'tx_tagpack_tags_relations_mm', $where, '', 'tablenames ASC, sorting ASC');
+				$where .= 'tablenames IN (' . $condition . ') AND ';
+			}
+				// NOTE: not sure how tagpack uses/sets these fields
+				// Anyway there's no TCA for table tx_tagpack_tags_relations_mm,
+				// so the proper API cannot be used
+			$where .= "hidden='0' AND deleted='0'";
+				// Query the tags relations table
+				// NOTE: results are sorted by table and by sorting
+				// This respects the order in which tags were applied. Maybe this doesn't make sense after all. Could be reviewed at a later stage
+			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('uid_local, uid_foreign, tablenames', 'tx_tagpack_tags_relations_mm', $where, '', 'tablenames ASC, sorting ASC');
 
-					// Loop on the results and sort them by table
-				while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
-					if (!isset($uidsPerTable[$row['tablenames']])) {
-						$uidsPerTable[$row['tablenames']] = array();
-						$tagsPerItem[$row['tablenames']] = array();
-					}
-					if (!isset($tagsPerItem[$row['tablenames']][$row['uid_foreign']])) {
-						$tagsPerItem[$row['tablenames']][$row['uid_foreign']] = array();
-					}
-					$uidsPerTable[$row['tablenames']][$row['uid_foreign']] = $row['uid_foreign'];
-					$tagsPerItem[$row['tablenames']][$row['uid_foreign']][] = $row['uid_local'];
+				// Loop on the results and sort them by table
+			while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
+				if (!isset($uidsPerTable[$row['tablenames']])) {
+					$uidsPerTable[$row['tablenames']] = array();
+					$tagsPerItem[$row['tablenames']] = array();
 				}
-					// If the items should match all tags ("AND" logical operator chosen)
-					// perform some post-process filtering, because such a condition
-					// cannot be expressed simply in the SELECT query
-				if ($this->providerData['logical_operator'] == 'AND') {
-					foreach ($tagsPerItem as $table => $tableRows) {
-						foreach ($tableRows as $uid_foreign => $uid_locals) {
-								// Check if all chosen tags are matched by tags found per item
-							$rest = array_diff($finalTags, $uid_locals);
-								// At least one tag was not matched,
-								// remove item from list
-							if (count($rest) > 0) {
-								unset($uidsPerTable[$table][$uid_foreign]);
-							}
+				if (!isset($tagsPerItem[$row['tablenames']][$row['uid_foreign']])) {
+					$tagsPerItem[$row['tablenames']][$row['uid_foreign']] = array();
+				}
+				$uidsPerTable[$row['tablenames']][$row['uid_foreign']] = $row['uid_foreign'];
+				$tagsPerItem[$row['tablenames']][$row['uid_foreign']][] = $row['uid_local'];
+			}
+				// If the items should match all tags ("AND" logical operator chosen)
+				// perform some post-process filtering, because such a condition
+				// cannot be expressed simply in the SELECT query
+			if ($this->providerData['logical_operator'] == 'AND') {
+				foreach ($tagsPerItem as $table => $tableRows) {
+					foreach ($tableRows as $uid_foreign => $uid_locals) {
+							// Check if all chosen tags are matched by tags found per item
+						$rest = array_diff($finalTags, $uid_locals);
+							// At least one tag was not matched,
+							// remove item from list
+						if (count($rest) > 0) {
+							unset($uidsPerTable[$table][$uid_foreign]);
 						}
 					}
 				}
 			}
+		
 
 				// Assemble data structure parts
 			$count = 0;
@@ -261,7 +258,13 @@ class tx_tagpackprovider extends tx_tesseract_providerbase {
 		foreach ($allLines as $line) {
 			try {
 				$evaluatedExpression = tx_expressions_parser::evaluateExpression($line);
-				if (!empty($evaluatedExpression)) {
+				
+				// If we specifically asked to get all content, we just skip tags selection
+				if ($evaluatedExpression == '\all') {
+				       continue;
+				}
+				// else we try to find tags
+				elseif (!empty($evaluatedExpression)) {
 					if (is_array($evaluatedExpression)) {
 						$tagList = $evaluatedExpression;
 					} elseif (strpos($evaluatedExpression, ',') === false) {
