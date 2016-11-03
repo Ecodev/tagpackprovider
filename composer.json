@@ -1,6 +1,5 @@
 {
     "name": "ecodev/tagpackprovider",
-    "version": "1.2.0",
     "type": "typo3-cms-extension",
     "description": "This Data Provider relies on tags from extension Tag Pack to provide lists of items. More info on http://www.typo3-tesseract.com/",
     "homepage": "https://github.com/ecodev/tagpackprovider",
