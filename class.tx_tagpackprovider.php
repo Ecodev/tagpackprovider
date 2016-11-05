@@ -260,7 +260,7 @@ class tx_tagpackprovider extends tx_tesseract_providerbase {
 				$evaluatedExpression = tx_expressions_parser::evaluateExpression($line);
 				
 				// If we specifically asked to get all content, we just skip tags selection
-				if ($evaluatedExpression == '\all') {
+				if ($evaluatedExpression == '\\\\all') {
 				       continue;
 				}
 				// else we try to find tags
